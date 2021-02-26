@@ -1,2 +1,3 @@
 # kenton777.github.io
-try website
+Were supprised by the free hosting service provided by Github itself. 
+Trying to make my very first own website.
