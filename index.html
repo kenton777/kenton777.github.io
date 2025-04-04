@@ -155,8 +155,8 @@
                 <button class="btn btn-primary" onclick="addRow()">
                     <i class="fas fa-plus"></i>添加行
                 </button>
-                <button class="btn btn-primary" onclick="deleteRow()">
-                    <i class="fas fa-minus"></i>删除行
+                <button class="btn btn-primary" onclick="deleteLastRow()">
+                    <i class="fas fa-minus"></i>删除最后一行
                 </button>
                 <button class="btn btn-primary" onclick="copyToClipboard()">
                     <i class="fas fa-copy"></i>复制到剪贴板
@@ -168,6 +168,7 @@
                     <tr>
                         <th>工作代码</th>
                         <th>工作列表</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -179,60 +180,106 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 使用localStorage保存数据
-        function saveData() {
-            const rows = [];
-            $('#tableBody tr').each(function() {
-                const inputs = $(this).find('input');
-                rows.push({
-                    jobCode: inputs[0].value,
-                    jobList: inputs[1].value
-                });
-            });
-            localStorage.setItem('jobData', JSON.stringify(rows));
-        }
+        const API_URL = 'http://localhost:3000/api';
 
-        function loadData() {
-            const savedData = localStorage.getItem('jobData');
-            if (savedData) {
-                const rows = JSON.parse(savedData);
-                rows.forEach(row => {
-                    addRow(row.jobCode, row.jobList);
+        // 加载数据
+        async function loadData() {
+            try {
+                const response = await fetch(`${API_URL}/jobs`);
+                const jobs = await response.json();
+                $('#tableBody').empty();
+                jobs.forEach(job => {
+                    addRowToTable(job);
                 });
-            } else {
-                addRow();
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                alert('加载数据失败，请检查服务器连接');
             }
         }
 
-        function addRow(jobCode = 'PGEO ', jobList = '') {
-            const tbody = $('#tableBody');
-            const row = $('<tr>');
+        // 添加行到表格
+        function addRowToTable(job) {
+            const row = $('<tr>').attr('data-id', job.id);
             const cell1 = $('<td>').append(
                 $('<input>').attr({
                     type: 'text',
                     class: 'form-control',
-                    value: jobCode
-                }).on('input', saveData)
+                    value: job.job_code
+                }).on('input', () => saveRow(job.id))
             );
             const cell2 = $('<td>').append(
                 $('<input>').attr({
                     type: 'text',
                     class: 'form-control',
-                    value: jobList
-                }).on('input', saveData)
+                    value: job.job_list
+                }).on('input', () => saveRow(job.id))
             );
-            row.append(cell1, cell2);
-            tbody.append(row);
+            const cell3 = $('<td>').append(
+                $('<button>').addClass('btn btn-danger')
+                    .html('<i class="fas fa-trash"></i>')
+                    .on('click', () => deleteRow(job.id))
+            );
+            row.append(cell1, cell2, cell3);
+            $('#tableBody').append(row);
         }
 
-        function deleteRow() {
-            const table = $('#jobTable');
-            if (table.find('tr').length > 1) {
-                table.find('tr:last').remove();
-                saveData();
+        // 添加新行
+        async function addRow() {
+            try {
+                const response = await fetch(`${API_URL}/jobs`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        job_code: 'PGEO ',
+                        job_list: ''
+                    })
+                });
+                const newJob = await response.json();
+                addRowToTable(newJob);
+            } catch (error) {
+                console.error('添加行失败:', error);
+                alert('添加行失败，请检查服务器连接');
             }
         }
 
+        // 保存行
+        async function saveRow(id) {
+            const row = $(`tr[data-id="${id}"]`);
+            const job_code = row.find('input').eq(0).val();
+            const job_list = row.find('input').eq(1).val();
+            
+            try {
+                await fetch(`${API_URL}/jobs/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ job_code, job_list })
+                });
+            } catch (error) {
+                console.error('保存失败:', error);
+                alert('保存失败，请检查服务器连接');
+            }
+        }
+
+        // 删除行
+        async function deleteRow(id) {
+            if (!confirm('确定要删除这一行吗？')) return;
+            
+            try {
+                await fetch(`${API_URL}/jobs/${id}`, {
+                    method: 'DELETE'
+                });
+                $(`tr[data-id="${id}"]`).remove();
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert('删除失败，请检查服务器连接');
+            }
+        }
+
+        // 复制到剪贴板
         function copyToClipboard() {
             const rows = $('#tableBody tr');
             let text = '';
@@ -245,10 +292,18 @@
             });
         }
 
-        // 页面加载时加载保存的数据
-        $(document).ready(function() {
-            loadData();
-        });
+        // 删除最后一行
+        async function deleteLastRow() {
+            const rows = $('#tableBody tr');
+            if (rows.length > 0) {
+                const lastRow = rows.last();
+                const id = lastRow.attr('data-id');
+                await deleteRow(id);
+            }
+        }
+
+        // 页面加载时加载数据
+        $(document).ready(loadData);
     </script>
 </body>
 </html> 
